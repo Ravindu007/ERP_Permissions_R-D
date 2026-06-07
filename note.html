@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Permissions: RBAC vs ABAC</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --text: #d4d4d4;
+            --blue: #3794ff;
+            --green: #4ec9b0;
+            --purple: #c586c0;
+            --orange: #ce9178;
+            --comment: #6a9955;
+            --border: #333;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; max-width: 1000px; margin: auto; padding: 40px; }
+        h1, h2, h3 { color: #58a6ff; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        /* Diagram Styling */
+        .diagram-container { background: #161b22; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 20px 0; overflow-x: auto; }
+        .table { display: inline-block; border: 2px solid #30363d; border-radius: 6px; padding: 10px; background: #0d1117; min-width: 150px; vertical-align: top; margin: 10px; }
+        .table-header { border-bottom: 2px solid #30363d; font-weight: bold; color: #58a6ff; padding-bottom: 5px; margin-bottom: 5px; text-align: center; }
+        .table-row { font-size: 0.9em; padding: 2px 0; border-bottom: 1px solid #21262d; }
+        .table-row:last-child { border-bottom: none; }
+        .pk { color: #d2a8ff; font-weight: bold; }
+        .fk { color: #ff7b72; font-style: italic; }
+        .connector { display: inline-block; vertical-align: middle; color: #8b949e; font-size: 20px; padding: 0 10px; }
+
+        /* Code Block Styling */
+        pre { background: var(--bg); color: var(--text); padding: 20px; border-radius: 8px; font-family: 'Consolas', monospace; overflow-x: auto; border: 1px solid var(--border); }
+        .k { color: var(--purple); } /* keyword */
+        .f { color: #dcdcaa; } /* function */
+        .s { color: var(--orange); } /* string */
+        .c { color: var(--comment); } /* comment */
+        .v { color: #9cdcfe; } /* variable */
+        .t { color: var(--green); } /* type */
+
+        /* ERD Relationship Diagram */
+        .erd-wrap { display: flex; align-items: center; overflow-x: auto; padding: 10px 0; }
+        .erd-box { border: 2px solid #30363d; border-radius: 6px; background: #0d1117; min-width: 120px; flex-shrink: 0; }
+        .erd-box.join { border-style: dashed; background: #161b22; }
+        .erd-box.join .erd-box-head { background: #271d0a; color: #e3b341; border-bottom-color: #9e6a03; }
+        .erd-box-head { background: #21262d; padding: 7px 12px; font-weight: bold; color: #58a6ff; border-bottom: 2px solid #30363d; text-align: center; border-radius: 4px 4px 0 0; font-size: 0.9em; }
+        .erd-box-row { font-size: 0.85em; padding: 4px 10px; border-bottom: 1px solid #21262d; color: #c9d1d9; }
+        .erd-box-row:last-child { border-bottom: none; }
+        .erd-lw { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 80px; flex-shrink: 0; }
+        .erd-ll { font-size: 0.7em; color: #8b949e; margin-bottom: 5px; white-space: nowrap; }
+        .erd-lb { display: flex; align-items: center; width: 100%; }
+        .erd-hr { flex: 1; height: 2px; background: #444d56; }
+        .erd-c { font-size: 0.75em; font-weight: bold; font-family: monospace; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
+        .erd-c.one { background: #0f2a1a; border: 1px solid #3fb950; color: #3fb950; }
+        .erd-c.many { background: #2d1111; border: 1px solid #f85149; color: #f85149; }
+        .erd-crow { color: #f85149; font-weight: bold; font-size: 1.1em; line-height: 1; }
+
+        /* ABAC Evaluation Diagram */
+        .abac-wrap { display: flex; align-items: stretch; overflow-x: auto; padding: 10px 0; gap: 0; }
+        .abac-box { border: 2px solid #30363d; border-radius: 6px; background: #0d1117; min-width: 150px; flex-shrink: 0; }
+        .abac-box-head { padding: 7px 12px; font-weight: bold; border-bottom: 2px solid #30363d; text-align: center; border-radius: 4px 4px 0 0; font-size: 0.9em; }
+        .abac-box-head.subject { background: #1a2a4a; color: #79c0ff; border-bottom-color: #1f6feb; }
+        .abac-box-head.resource { background: #1a3a2a; color: #7ee787; border-bottom-color: #238636; }
+        .abac-box-row { font-size: 0.85em; padding: 4px 10px; border-bottom: 1px solid #21262d; color: #c9d1d9; }
+        .abac-box-row:last-child { border-bottom: none; }
+        .abac-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 10px; gap: 4px; }
+        .abac-mid-arr { color: #8b949e; font-size: 1.3em; }
+        .abac-policy { background: #1e1328; border: 1px solid #6e40c9; border-radius: 6px; min-width: 195px; flex-shrink: 0; }
+        .abac-policy-head { background: #2d1f4e; color: #d2a8ff; padding: 7px 12px; font-weight: bold; font-size: 0.85em; border-bottom: 1px solid #6e40c9; border-radius: 5px 5px 0 0; text-align: center; }
+        .abac-policy-row { font-size: 0.78em; padding: 4px 10px; border-bottom: 1px dashed #2d2d2d; color: #8b949e; font-family: 'Consolas', monospace; }
+        .abac-policy-row:last-of-type { border-bottom: none; }
+        .abac-policy-result { font-size: 0.82em; padding: 6px 10px; color: #3fb950; font-weight: bold; text-align: center; border-top: 1px solid #6e40c9; border-radius: 0 0 5px 5px; background: #0f2a1a; }
+
+        /* Example Sections */
+        .example-container { background: #0d1117; border: 1px dashed #30363d; border-radius: 8px; padding: 16px 20px; margin: 12px 0 20px; overflow-x: auto; }
+        .example-label { font-size: 0.78em; color: #58a6ff; font-weight: 600; margin-bottom: 14px; display: block; }
+        .erd-box-row.hi { background: #122212; }
+        .erd-box-row.hi .pk { color: #56d364; }
+        .erd-box-row.hi .fk { color: #56d364; }
+        .abac-policy-row.pass { color: #3fb950; }
+        .ex-result { margin-top: 12px; padding: 8px 14px; background: #122212; border: 1px solid #2ea043; border-radius: 4px; font-size: 0.85em; color: #c9d1d9; }
+        .ex-pass { color: #3fb950; font-weight: bold; }
+
+        /* ERP Permissions Section */
+        ul { padding-left: 22px; margin: 10px 0 16px; }
+        ul li { margin-bottom: 8px; line-height: 1.6; }
+        .level-badge { display: inline-block; padding: 2px 9px; border-radius: 4px; font-size: 0.7em; font-weight: bold; margin-right: 8px; vertical-align: middle; font-family: monospace; }
+        .level-badge.l1 { background: #1a3a1a; color: #3fb950; border: 1px solid #2ea043; }
+        .level-badge.l2 { background: #1a2a4a; color: #79c0ff; border: 1px solid #1f6feb; }
+        .level-badge.l3 { background: #271d0a; color: #e3b341; border: 1px solid #9e6a03; }
+        .erp-hierarchy { display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        .erp-level { display: flex; align-items: center; gap: 14px; border-radius: 6px; padding: 10px 16px; box-sizing: border-box; }
+        .erp-level.l1 { background: #1a3a1a; border: 1px solid #2ea043; width: 100%; }
+        .erp-level.l2 { background: #1a2a4a; border: 1px solid #1f6feb; width: 82%; }
+        .erp-level.l3 { background: #271d0a; border: 1px solid #9e6a03; width: 64%; }
+        .erp-level-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9em; flex-shrink: 0; }
+        .erp-level.l1 .erp-level-num { background: #2ea043; color: #0d1117; }
+        .erp-level.l2 .erp-level-num { background: #1f6feb; color: #fff; }
+        .erp-level.l3 .erp-level-num { background: #9e6a03; color: #0d1117; }
+        .erp-level-content { display: flex; flex-direction: column; gap: 3px; }
+        .erp-level.l1 .erp-level-content b { color: #3fb950; font-size: 0.9em; }
+        .erp-level.l2 .erp-level-content b { color: #79c0ff; font-size: 0.9em; }
+        .erp-level.l3 .erp-level-content b { color: #e3b341; font-size: 0.9em; }
+        .erp-level-desc { font-size: 0.8em; color: #8b949e; }
+        .erp-arrow { color: #444d56; font-size: 0.72em; padding: 3px 0; text-align: center; width: 100%; }
+        .note-box { background: #161b22; border-left: 3px solid #58a6ff; border-radius: 0 6px 6px 0; padding: 14px 18px; margin-top: 24px; font-size: 0.9em; color: #c9d1d9; line-height: 1.7; }
+    </style>
+</head>
+<body>
+
+    <h1>Enterprise Permission Architecture</h1>
+
+    <!-- 1. RBAC SECTION -->
+    <h2>1. Role-Based Access Control (RBAC)</h2>
+    <p>RBAC replaces hardcoded role strings with a <b>permission-based mindset</b>. You define what a user can do as an <code>action:resource</code> string (e.g., <code>delete:comment</code>). This allows you to update permissions for a whole role in one place.</p>
+
+    <h3>RBAC Database Schema Diagram</h3>
+    <div class="diagram-container">
+        <div class="erd-wrap">
+            <div class="erd-box">
+                <div class="erd-box-head">Users</div>
+                <div class="erd-box-row"><span class="pk">PK</span> id</div>
+                <div class="erd-box-row">email</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">1 : N</div>
+                <div class="erd-lb">
+                    <span class="erd-c one">1</span>
+                    <div class="erd-hr"></div>
+                    <span class="erd-crow">&gt;</span>
+                    <span class="erd-c many">N</span>
+                </div>
+            </div>
+            <div class="erd-box join">
+                <div class="erd-box-head">User_Roles</div>
+                <div class="erd-box-row"><span class="fk">FK</span> user_id</div>
+                <div class="erd-box-row"><span class="fk">FK</span> role_id</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">N : 1</div>
+                <div class="erd-lb">
+                    <span class="erd-c many">N</span>
+                    <span class="erd-crow">&lt;</span>
+                    <div class="erd-hr"></div>
+                    <span class="erd-c one">1</span>
+                </div>
+            </div>
+            <div class="erd-box">
+                <div class="erd-box-head">Roles</div>
+                <div class="erd-box-row"><span class="pk">PK</span> id</div>
+                <div class="erd-box-row">name</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">1 : N</div>
+                <div class="erd-lb">
+                    <span class="erd-c one">1</span>
+                    <div class="erd-hr"></div>
+                    <span class="erd-crow">&gt;</span>
+                    <span class="erd-c many">N</span>
+                </div>
+            </div>
+            <div class="erd-box join">
+                <div class="erd-box-head">Role_Permissions</div>
+                <div class="erd-box-row"><span class="fk">FK</span> role_id</div>
+                <div class="erd-box-row"><span class="fk">FK</span> permission_id</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">N : 1</div>
+                <div class="erd-lb">
+                    <span class="erd-c many">N</span>
+                    <span class="erd-crow">&lt;</span>
+                    <div class="erd-hr"></div>
+                    <span class="erd-c one">1</span>
+                </div>
+            </div>
+            <div class="erd-box">
+                <div class="erd-box-head">Permissions</div>
+                <div class="erd-box-row"><span class="pk">PK</span> id</div>
+                <div class="erd-box-row">name (e.g. 'view:todos')</div>
+            </div>
+        </div>
+    </div>
+    <div class="example-container">
+        <span class="example-label">&#x21B3; Example &mdash; alice (admin + moderator) checks &ldquo;delete:comments&rdquo;</span>
+        <div class="erd-wrap">
+            <div class="erd-box">
+                <div class="erd-box-head">Users</div>
+                <div class="erd-box-row hi"><span class="pk">1</span>&nbsp; alice@co.com</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">1 : N</div>
+                <div class="erd-lb"><span class="erd-c one">1</span><div class="erd-hr"></div><span class="erd-crow">&gt;</span><span class="erd-c many">N</span></div>
+            </div>
+            <div class="erd-box join">
+                <div class="erd-box-head">User_Roles</div>
+                <div class="erd-box-row hi"><span class="fk">1</span>&nbsp;&#8594;&nbsp;<span class="fk">1</span></div>
+                <div class="erd-box-row hi"><span class="fk">1</span>&nbsp;&#8594;&nbsp;<span class="fk">2</span></div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">N : 1</div>
+                <div class="erd-lb"><span class="erd-c many">N</span><span class="erd-crow">&lt;</span><div class="erd-hr"></div><span class="erd-c one">1</span></div>
+            </div>
+            <div class="erd-box">
+                <div class="erd-box-head">Roles</div>
+                <div class="erd-box-row hi"><span class="pk">1</span>&nbsp; admin</div>
+                <div class="erd-box-row"><span class="pk">2</span>&nbsp; moderator</div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">1 : N</div>
+                <div class="erd-lb"><span class="erd-c one">1</span><div class="erd-hr"></div><span class="erd-crow">&gt;</span><span class="erd-c many">N</span></div>
+            </div>
+            <div class="erd-box join">
+                <div class="erd-box-head">Role_Permissions</div>
+                <div class="erd-box-row"><span class="fk">1</span>&nbsp;&#8594;&nbsp;<span class="fk">3</span></div>
+                <div class="erd-box-row hi"><span class="fk">1</span>&nbsp;&#8594;&nbsp;<span class="fk">4</span></div>
+                <div class="erd-box-row"><span class="fk">2</span>&nbsp;&#8594;&nbsp;<span class="fk">1</span></div>
+            </div>
+            <div class="erd-lw">
+                <div class="erd-ll">N : 1</div>
+                <div class="erd-lb"><span class="erd-c many">N</span><span class="erd-crow">&lt;</span><div class="erd-hr"></div><span class="erd-c one">1</span></div>
+            </div>
+            <div class="erd-box">
+                <div class="erd-box-head">Permissions</div>
+                <div class="erd-box-row"><span class="pk">3</span>&nbsp; update:comments</div>
+                <div class="erd-box-row hi"><span class="pk">4</span>&nbsp; delete:comments</div>
+            </div>
+        </div>
+        <div class="ex-result"><code>hasPermission(alice, "delete:comments")</code> &rarr; <span class="ex-pass">true</span> &mdash; matched via <b>admin</b> role (role_id:1 &rarr; perm_id:4)</div>
+    </div>
+    <p><i>Note: Using join tables for many-to-many relationships ensures a user can have multiple roles, which is a senior developer best practice.</i></p>
+
+    <h3>RBAC Logic Implementation</h3>
+<pre>
+<span class="c">// In-memory representation of database results</span>
+<span class="k">const</span> <span class="v">ROLES</span> = {
+  admin: [<span class="s">"view:comments"</span>, <span class="s">"create:comments"</span>, <span class="s">"update:comments"</span>, <span class="s">"delete:comments"</span>],
+  moderator: [<span class="s">"view:comments"</span>, <span class="s">"update:comments"</span>],
+  user: [<span class="s">"view:comments"</span>]
+};
+
+<span class="k">function</span> <span class="f">hasPermission</span>(<span class="v">user</span>, <span class="v">permission</span>) {
+  <span class="c">// Handles multiple roles per user</span>
+  <span class="k">return</span> <span class="v">user</span>.<span class="v">roles</span>.<span class="f">some</span>(<span class="v">role</span> => <span class="v">ROLES</span>[<span class="v">role</span>].<span class="f">includes</span>(<span class="v">permission</span>));
+}
+</pre>
+
+    <!-- 2. ABAC SECTION -->
+    <hr>
+    <h2>2. Attribute-Based Access Control (ABAC)</h2>
+    <p>ABAC is the <b>most flexible system</b>. It evaluates four components: **Subject**, **Action**, **Resource**, and **Environment/Attributes**. It handles "fine-grained" logic that RBAC cannot, like ownership or status-based locks.</p>
+
+    <h3>ABAC Database Schema (Attribute Focus)</h3>
+    <div class="diagram-container">
+        <div class="abac-wrap">
+            <div class="abac-box">
+                <div class="abac-box-head subject">Subject (User)</div>
+                <div class="abac-box-row"><span class="pk">PK</span> id</div>
+                <div class="abac-box-row">roles[]</div>
+                <div class="abac-box-row">blocked_by[]</div>
+            </div>
+            <div class="abac-mid">
+                <span class="abac-mid-arr">&#x27F6;</span>
+                <div class="abac-policy">
+                    <div class="abac-policy-head">&#x2696; Policy Evaluation</div>
+                    <div class="abac-policy-row">!todo.author.blockedBy.includes(user.id)</div>
+                    <div class="abac-policy-row">todo.userId === user.id</div>
+                    <div class="abac-policy-row">todo.completed === true</div>
+                    <div class="abac-policy-row">todo.invited.includes(user.id)</div>
+                    <div class="abac-policy-result">&#x2192; Allow / Deny</div>
+                </div>
+                <span class="abac-mid-arr">&#x27F5;</span>
+            </div>
+            <div class="abac-box">
+                <div class="abac-box-head resource">Resource (To-Do)</div>
+                <div class="abac-box-row"><span class="pk">PK</span> id</div>
+                <div class="abac-box-row"><span class="fk">FK</span> author_id</div>
+                <div class="abac-box-row">is_completed (Boolean)</div>
+                <div class="abac-box-row">invited_users[]</div>
+            </div>
+        </div>
+    </div>
+    <div class="example-container">
+        <span class="example-label">&#x21B3; Example &mdash; bob tries to delete his own completed todo #42</span>
+        <div class="abac-wrap">
+            <div class="abac-box">
+                <div class="abac-box-head subject">Subject: bob</div>
+                <div class="abac-box-row">id:&nbsp;<span class="v">2</span></div>
+                <div class="abac-box-row">roles:&nbsp;<span class="v">["user"]</span></div>
+                <div class="abac-box-row">blocked_by:&nbsp;<span class="v">[]</span></div>
+            </div>
+            <div class="abac-mid">
+                <span class="abac-mid-arr">&#x27F6;</span>
+                <div class="abac-policy">
+                    <div class="abac-policy-head">Action: delete</div>
+                    <div class="abac-policy-row pass">blocked? &rarr; <b>false</b> &#10003;</div>
+                    <div class="abac-policy-row pass">owner? (2 === 2) &rarr; <b>true</b> &#10003;</div>
+                    <div class="abac-policy-row pass">completed? &rarr; <b>true</b> &#10003;</div>
+                    <div class="abac-policy-row pass">invited? (2 in [2]) &rarr; <b>true</b> &#10003;</div>
+                    <div class="abac-policy-result">&#10003; ALLOW delete</div>
+                </div>
+                <span class="abac-mid-arr">&#x27F5;</span>
+            </div>
+            <div class="abac-box">
+                <div class="abac-box-head resource">Resource: todo #42</div>
+                <div class="abac-box-row">id:&nbsp;<span class="v">42</span></div>
+                <div class="abac-box-row">author_id:&nbsp;<span class="fk">2</span> (bob)</div>
+                <div class="abac-box-row">is_completed:&nbsp;<span class="v">true</span></div>
+                <div class="abac-box-row">invited:&nbsp;<span class="v">[2]</span></div>
+            </div>
+        </div>
+    </div>
+    <p><i>The "Permissions" are not just strings; they are <b>functions</b> that compare the attributes of the Subject (User) and the Resource (Data).</i></p>
+
+    <h3>ABAC Logic Implementation</h3>
+<pre>
+<span class="k">const</span> <span class="v">ABAC_RULES</span> = {
+  user: {
+    todos: {
+      <span class="c">// Logic: View if the author hasn't blocked you</span>
+      view: (<span class="v">user</span>, <span class="v">todo</span>) => !<span class="v">todo</span>.<span class="v">author</span>.<span class="v">blockedBy</span>.<span class="f">includes</span>(<span class="v">user</span>.<span class="v">id</span>),
+      
+      <span class="c">// Logic: Delete if completed AND user is owner or invited</span>
+      delete: (<span class="v">user</span>, <span class="v">todo</span>) => 
+        <span class="v">todo</span>.<span class="v">completed</span> && (<span class="v">todo</span>.<span class="v">userId</span> === <span class="v">user</span>.<span class="v">id</span> || <span class="v">todo</span>.<span class="v">invited</span>.<span class="f">includes</span>(<span class="v">user</span>.<span class="v">id</span>))
+    }
+  }
+};
+
+<span class="k">function</span> <span class="f">checkPermission</span>(<span class="v">user</span>, <span class="v">resource</span>, <span class="v">action</span>, <span class="v">data</span>) {
+  <span class="k">return</span> <span class="v">user</span>.<span class="v">roles</span>.<span class="f">some</span>(<span class="v">roleName</span> => {
+    <span class="k">const</span> <span class="v">rule</span> = <span class="v">ABAC_RULES</span>[<span class="v">roleName</span>]?.[<span class="v">resource</span>]?.[<span class="v">action</span>];
+    <span class="k">if</span> (<span class="v">rule</span> == <span class="k">null</span>) <span class="k">return false</span>;
+    <span class="k">if</span> (<span class="k">typeof</span> <span class="v">rule</span> === <span class="s">"boolean"</span>) <span class="k">return</span> <span class="v">rule</span>;
+    <span class="k">return</span> <span class="f">rule</span>(<span class="v">user</span>, <span class="v">data</span>);
+  });
+}
+</pre>
+
+    <h3>Summary Comparison</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <tr style="background: #21262d;">
+            <th style="padding: 10px; border: 1px solid var(--border);">System</th>
+            <th style="padding: 10px; border: 1px solid var(--border);">Best For</th>
+            <th style="padding: 10px; border: 1px solid var(--border);">Complexity</th>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid var(--border);"><b>RBAC</b></td>
+            <td style="padding: 10px; border: 1px solid var(--border);">Simple apps with fixed roles (Admin, Guest).</td>
+            <td style="padding: 10px; border: 1px solid var(--border);">Low - Database-driven mappings.</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid var(--border);"><b>ABAC</b></td>
+            <td style="padding: 10px; border: 1px solid var(--border);">Enterprise/SaaS apps with dynamic ownership & conditions.</td>
+            <td style="padding: 10px; border: 1px solid var(--border);">High - Application-level evaluation.</td>
+        </tr>
+    </table>
+
+    <!-- 3. ERP PERMISSIONS SECTION -->
+    <hr>
+    <h2>3. Permission Handling in ERPs</h2>
+    <p>In <b>ERPNext</b>, permission management is structured into a <b>hierarchical three-level approach</b> to ensure that users only access information relevant to their job profiles.</p>
+
+    <div class="diagram-container">
+        <div class="erp-hierarchy">
+            <div class="erp-level l1">
+                <span class="erp-level-num">1</span>
+                <div class="erp-level-content">
+                    <b>Role-Based Permissions</b>
+                    <span class="erp-level-desc">Roles &rarr; DocType + Action Rights (read, create, submit, delete&hellip;)</span>
+                </div>
+            </div>
+            <div class="erp-arrow">&#9660; narrows to</div>
+            <div class="erp-level l2">
+                <span class="erp-level-num">2</span>
+                <div class="erp-level-content">
+                    <b>Record-Based Permissions</b>
+                    <span class="erp-level-desc">User Permissions &rarr; Specific Record Filtering</span>
+                </div>
+            </div>
+            <div class="erp-arrow">&#9660; narrows to</div>
+            <div class="erp-level l3">
+                <span class="erp-level-num">3</span>
+                <div class="erp-level-content">
+                    <b>Field-Level Permissions</b>
+                    <span class="erp-level-desc">Perm Levels &rarr; Individual Field Visibility &amp; Editability</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3><span class="level-badge l1">Level 1</span> Role-Based Permissions</h3>
+    <p>At the highest level, permissions are governed by the <b>roles</b> assigned to a user.</p>
+    <ul>
+        <li><b>Role Assignment:</b> Every employee is assigned roles (e.g., <code>Sales User</code>, <code>Sales Manager</code>) based on their job profile. For recurring role combinations, you can create a <b>Role Profile</b> to automatically assign a set of roles to a new user at once.</li>
+        <li><b>Role Permissions Manager:</b> This tool defines exactly what a role can do with a specific <b>DocType</b> (like a Customer or Sales Order).</li>
+        <li><b>Action Rights:</b> Permissions can be fine-tuned to allow or disallow specific actions: read, create, edit, submit, delete, cancel, amend, share, print, import, or export.</li>
+    </ul>
+
+    <h3><span class="level-badge l2">Level 2</span> Record-Based Permissions</h3>
+    <p>Even if a user has a role that allows them to see a certain DocType, you may want to restrict which <b>specific records</b> they can see.</p>
+    <ul>
+        <li><b>User Permissions:</b> Restricts access based on specific values. For example, a Sales User may have permission to see the <code>Customer</code> DocType, but a User Permission can limit them to seeing <b>only the records</b> of the specific customers they manage.</li>
+        <li><b>Advanced Controls:</b> Further refine access, such as restricting a user to only see sales transactions from specific hotels or clients.</li>
+    </ul>
+
+    <h3><span class="level-badge l3">Level 3</span> Field-Level Permissions</h3>
+    <p>The most granular level, where users are restricted from viewing or editing <b>certain fields</b> within a single document.</p>
+    <ul>
+        <li><b>Perm Levels:</b> Fields within a DocType are assigned a "Perm Level" (e.g., Level 0 for general fields, Level 1 for sensitive fields like <code>Total Order Value</code> or <code>Ratings</code>).</li>
+        <li><b>Access Control:</b> Role Permissions can then be configured so that one role (like a Delivery Associate) only has read access to Level 0, while another (like an Account Manager) has read and write access to Level 1.</li>
+    </ul>
+
+    <h3>Additional Permission Tools</h3>
+    <ul>
+        <li><b>Role Permission for Pages and Reports:</b> Restricts access to sensitive financial information such as Balance Sheets, ensuring only specific roles like CXOs or Directors can view them.</li>
+        <li><b>The Share Button:</b> For temporary or unique scenarios, users can grant another user temporary read or write access to a specific document without permanently changing their role permissions.</li>
+    </ul>
+
+    <div class="note-box">
+        <b>Note on Previous Sections:</b> While the system above is specific to ERPNext, the <b>RBAC</b> and <b>ABAC</b> patterns described earlier represent the standard architectural foundations used when building custom applications from scratch. RBAC aligns closely with ERPNext&rsquo;s Level 1, while ABAC logic is often used programmatically to achieve the fine-grained control seen in Level 2 and Level 3.
+    </div>
+
+</body>
+</html>
